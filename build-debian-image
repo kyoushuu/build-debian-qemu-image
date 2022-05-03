@@ -29,6 +29,7 @@ fi
 # These require command to get and are needed for the usage message,
 # which is why they are the only defaults pulled out as a variable
 # like this.
+DEFAULT_MIRROR="$( grep -s -m1 '^deb ' /etc/apt/sources.list | awk '{print $2}' )"
 DEFAULT_SUITE="$( grep -s -m1 '^deb ' /etc/apt/sources.list | awk '{print $3}' )"
 DEFAULT_DOMAIN="$( hostname -d )"
 # In MiB.  How large should swap be? First 271MiB is used for system (boot)
@@ -52,6 +53,8 @@ Usage: $0 [-hSDM] [-s suite] [-f file] [-z size] [-w size] [-r passwd] [name]
            element, this can be helpful combined with -S during debugging and
            development.  The stage 2 script will still be written out.
 -M:        Leave the NBD attached and chroot filesystems mounted at the end.
+-m mirror: Use mirror as apt mirror, defaults to ${DEFAULT_MIRROR}
+           (taken from first line matching /^deb / in /etc/apt/sources.list).
 -s suite:  the Debian suite to build, defaults to $DEFAULT_SUITE (taken from
            first line matching /^deb / in /etc/apt/sources.list).
 -f file:   filename for the image, defaults to <name>.qcow2
@@ -70,7 +73,7 @@ name:      hostname to configure the image to, defaults to debian-<suite>
 EOF
 }
 
-while getopts ":hSDMs:f:z:w:r:d:t:" opt;
+while getopts ":hSDMm:s:f:z:w:r:d:t:" opt;
 do
 	case $opt in
 		h )
@@ -80,6 +83,9 @@ do
 		\? )
 			usage
 			exit 0
+			;;
+		m )
+			MIRROR="$OPTARG"
 			;;
 		s )
 			SUITE="$OPTARG"
@@ -122,6 +128,7 @@ shift $((OPTIND - 1))
 NAME="$1"
 
 # Set defaults for anything not set
+[[ -z $MIRROR ]] && MIRROR="$DEFAULT_MIRROR"
 [[ -z $SUITE ]] && SUITE="$DEFAULT_SUITE"
 [[ -z $NAME ]] && NAME="debian-$SUITE"
 [[ -z $FILE ]] && FILE="$NAME.qcow2"
@@ -246,7 +253,7 @@ if [[ -z "$SKIP_DEBOOTSTRAP" ]]
 then
 	echo "Bootstrapping debian"
 	# XXX Hardcoded to x86_64 architecture but at the moment I do not want to run anything else.
-	debootstrap --arch amd64 --include=salt-minion $SUITE /mnt http://deb.debian.org/debian
+	debootstrap --arch amd64 --include=salt-minion $SUITE /mnt $MIRROR
 fi
 
 echo "Mounting proc, dev and sys"
@@ -320,19 +327,7 @@ S2EOF
 
 echo "--------------------------------------------"
 
-echo "Configuring apt sources"
-
-cat - >/etc/apt/sources.list <<S2EOF
-deb http://deb.debian.org/debian/ bullseye main
-deb-src http://deb.debian.org/debian/ bullseye main
-
-deb http://security.debian.org/debian-security bullseye-security main
-deb-src http://security.debian.org/debian-security bullseye-security main
-
-# bullseye-updates, previously known as 'volatile'
-deb http://deb.debian.org/debian/ bullseye-updates main
-deb-src http://deb.debian.org/debian/ bullseye-updates main
-S2EOF
+echo "Updating packages"
 
 apt-get -qq -y update
 
