@@ -41,7 +41,7 @@ DEFAULT_SIZE="5G"
 
 usage() {
 	cat - <<EOF
-Usage: $0 [-hSDM] [-s suite] [-f file] [-z size] [-r passwd] [name]
+Usage: $0 [-hSDM] [-s suite] [-f file] [-z size] [-w size] [-r passwd] [name]
 
 -h:        Display this message and exit
 -S:        Skip debootstrap initialising a blank image and go stright to
@@ -68,7 +68,7 @@ name:      hostname to configure the image to, defaults to debian-<suite>
 EOF
 }
 
-while getopts ":hSDMs:f:z:r:d:" opt;
+while getopts ":hSDMs:f:z:w:r:d:" opt;
 do
 	case $opt in
 		h )
@@ -87,6 +87,9 @@ do
 			;;
 		z )
 			SIZE="$OPTARG"
+			;;
+		w )
+			SWAP_SIZE="$OPTARG"
 			;;
 		r )
 			ROOT_PASSWD="$( eval "echo \${$OPTARG}" )"

@@ -37,7 +37,7 @@ You will need:
 ## Usage
 
 ```
-Usage: build-debian-image [-hSDM] [-s suite] [-f file] [-z size] [-r passwd] [name]
+Usage: build-debian-image [-hSDM] [-s suite] [-f file] [-z size] [-w size] [-r passwd] [name]
 
 -h:        Display this message and exit
 -S:        Skip debootstrap initialising a blank image and go stright to
