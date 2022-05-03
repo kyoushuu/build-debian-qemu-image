@@ -37,6 +37,7 @@ DEFAULT_DOMAIN="$( hostname -d )"
 DEFAULT_SWAP=753
 # An be in any format recognised by qemu-img - note sizes (K, M, G, T) are KiB not KB.
 DEFAULT_SIZE="5G"
+DEFAULT_TIMEZONE="America/New_York"
 
 
 usage() {
@@ -64,11 +65,12 @@ Usage: $0 [-hSDM] [-s suite] [-f file] [-z size] [-w size] [-r passwd] [name]
            command-line, which any user on the system can see).
 -d domain: Use domain as the new hosts domain, defaults to $DEFAULT_DOMAIN (
            taken from this host's 'hostname -d')
+-t tz:     Use tz as the timezone, defaults to ${DEFAULT_TIMEZONE}
 name:      hostname to configure the image to, defaults to debian-<suite>
 EOF
 }
 
-while getopts ":hSDMs:f:z:w:r:d:" opt;
+while getopts ":hSDMs:f:z:w:r:d:t:" opt;
 do
 	case $opt in
 		h )
@@ -97,6 +99,9 @@ do
 		d )
 			DOMAIN_NAME="$OPTARG"
 			;;
+		t )
+			TIMEZONE="$OPTARG"
+			;;
 		S )
 			SKIP_DEBOOTSTRAP="skip"
 			;;
@@ -123,6 +128,7 @@ NAME="$1"
 [[ -z $SIZE ]] && SIZE="$DEFAULT_SIZE"
 [[ -z $DOMAIN_NAME ]] && DOMAIN_NAME="$DEFAULT_DOMAIN"
 [[ -z $SWAP_SIZE ]] && SWAP_SIZE="$DEFAULT_SWAP"
+[[ -z $TIMEZONE ]] && TIMEZONE="$DEFAULT_TIMEZONE"
 
 [[ -z $ROOT_PASSWD ]] && echo "No root password given.  None will be set in the image."
 
@@ -278,12 +284,8 @@ mount -a
 echo "--------------------------------------------"
 
 echo "Setting timezone"
-debconf-set-selections <<S2EOF
-tzdata tzdata/Areas select Europe
-tzdata tzdata/Zones/Europe select London
-S2EOF
-# This is necessary as tzdata will assume these are manually set and override the debconf values with their settings
-rm -f /etc/localtime /etc/timezone
+echo "$TIMEZONE" > /etc/timezone
+rm -f /etc/localtime
 dpkg-reconfigure -f noninteractive tzdata
 
 echo "--------------------------------------------"
