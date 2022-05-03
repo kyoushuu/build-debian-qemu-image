@@ -240,7 +240,7 @@ if [[ -z "$SKIP_DEBOOTSTRAP" ]]
 then
 	echo "Bootstrapping debian"
 	# XXX Hardcoded to x86_64 architecture but at the moment I do not want to run anything else.
-	debootstrap --arch amd64 --include=salt-minion $SUITE /mnt http://ftp.uk.debian.org/debian
+	debootstrap --arch amd64 --include=salt-minion $SUITE /mnt http://deb.debian.org/debian
 fi
 
 echo "Mounting proc, dev and sys"
@@ -321,15 +321,15 @@ echo "--------------------------------------------"
 echo "Configuring apt sources"
 
 cat - >/etc/apt/sources.list <<S2EOF
-deb http://ftp.uk.debian.org/debian/ buster main
-deb-src http://ftp.uk.debian.org/debian/ buster main
+deb http://deb.debian.org/debian/ buster main
+deb-src http://deb.debian.org/debian/ buster main
 
 deb http://security.debian.org/debian-security buster/updates main
 deb-src http://security.debian.org/debian-security buster/updates main
 
 # buster-updates, previously known as 'volatile'
-deb http://ftp.uk.debian.org/debian/ buster-updates main
-deb-src http://ftp.uk.debian.org/debian/ buster-updates main
+deb http://deb.debian.org/debian/ buster-updates main
+deb-src http://deb.debian.org/debian/ buster-updates main
 S2EOF
 
 apt-get -qq -y update
