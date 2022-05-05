@@ -183,28 +183,23 @@ fi
 echo "Mounting image on $NBD_DEV"
 qemu-nbd -c $NBD_DEV $FILE
 
-PARTED_COMMANDS="mklabel gpt \
-mkpart primary fat32 1MiB $(( 1 + EFI_SIZE ))MiB \
-name 1 uefi \
-set 1 esp on"
+PARTED_COMMANDS="mklabel msdos"
 if [[ $SWAP_SIZE == 0 ]]
 then
 	echo "Skipping swap"
 	NO_SWAP="no-swap"
-	ROOT_PART=2
-	ROOT_START="$(( 1 + EFI_SIZE ))MiB"
+	ROOT_PART=1
+	ROOT_START="1MiB"
 else
 	echo "Partitoning with ${SWAP_SIZE}MiB for swap and rest for root"
 	PARTED_COMMANDS="$PARTED_COMMANDS \
-mkpart primary linux-swap $(( 1 + EFI_SIZE ))MiB $(( 1 + EFI_SIZE + SWAP_SIZE ))MiB \
-name 2 swap"
-	ROOT_PART=3
-	ROOT_START="$(( 1 + EFI_SIZE + SWAP_SIZE ))MiB"
+mkpart primary linux-swap 1MiB $(( 1 + SWAP_SIZE ))MiB"
+	ROOT_PART=2
+	ROOT_START="$(( 1 + SWAP_SIZE ))MiB"
 fi
 
 PARTED_COMMANDS="$PARTED_COMMANDS \
-mkpart primary ext4 $ROOT_START -0 \
-name $ROOT_PART root"
+mkpart primary ext4 $ROOT_START -0"
 unset ROOT_START
 
 # Only apply partitioning if not skipping debootstrap
@@ -222,12 +217,10 @@ parted -s $NBD_DEV print
 if [[ -z "$SKIP_DEBOOTSTRAP" ]]
 then
 	echo "Formating:"
-	echo "...EFI partition"
-	mkfs -t fat -F 32 -n EFI ${NBD_DEV}p1
 	if [[ -z $NO_SWAP ]]
 	then
 		echo "...swap"
-		mkswap -L swap ${NBD_DEV}p2
+		mkswap -L swap ${NBD_DEV}p1
 	fi
 	echo "...root"
 	mkfs -t ext4 -L root ${NBD_DEV}p${ROOT_PART}
@@ -237,16 +230,12 @@ unset ROOT_PART
 
 ROOT_UUID="$(blkid | grep "^${NBD_DEV}p[0-9]\+:" | grep ' LABEL="root" ' | grep -o ' UUID="[^"]\+"' | sed -e 's/^ //' )"
 [[ -z $NO_SWAP ]] && SWAP_UUID="$(blkid | grep "^${NBD_DEV}p[0-9]\+:" | grep ' LABEL="swap" ' | grep -o ' UUID="[^"]\+"' | sed -e 's/^ //' )"
-EFI_UUID="$(blkid | grep "^${NBD_DEV}p[0-9]\+:" | grep ' LABEL="EFI" ' | grep -o ' UUID="[^"]\+"' | sed -e 's/^ //' )"
 
 echo "Root: $ROOT_UUID"
 [[ -z $NO_SWAP ]] && echo "swap: $SWAP_UUID"
-echo "EFI: $EFI_UUID"
 
 echo "Mounting for chroot"
 mount $ROOT_UUID /mnt
-[[ -d /mnt/boot/efi ]] || mkdir -p /mnt/boot/efi
-mount $EFI_UUID /mnt/boot/efi
 
 # The main debootstrap - skip if requested
 if [[ -z "$SKIP_DEBOOTSTRAP" ]]
@@ -281,12 +270,10 @@ cat > /etc/fstab <<S2EOF
 # <file system> <mount point>   <type>  <options>       <dump>  <pass>
 $( [[ -z $NO_SWAP ]] && echo "$SWAP_UUID none swap sw  0       0" )
 $ROOT_UUID / ext4 errors=remount-ro 0 1
-$EFI_UUID /boot/efi vfat defaults 0 1
 S2EOF
 cat /etc/fstab
 
 echo "...mounting"
-[[ -d /boot/efi ]] || mkdir /boot/efi
 mount -a
 
 echo "--------------------------------------------"
@@ -361,19 +348,19 @@ apt-get -qq -y install linux-image-generic
 echo "--------------------------------------------"
 
 echo "Installing bootloader"
-apt-get -qq -y install grub-efi-amd64 shim-signed
+apt-get -qq -y install grub-pc
 # Add console=ttyS0 so we get early boot messages on the serial console.
 sed -i -e 's/^\\(GRUB_CMDLINE_LINUX="[^"]*\\)"$/\\1 console=ttyS0"/' /etc/default/grub
 cat - >>/etc/default/grub <<S2EOF
 GRUB_TERMINAL="serial"
 GRUB_SERIAL_COMMAND="serial --unit=0 --speed=9600 --stop=1"
 S2EOF
-grub-install --target=x86_64-efi
+grub-install ${NBD_DEV}
 update-grub
 
-echo "Copying fallback bootloader"
-[[ -d /boot/efi/EFI/BOOT ]] || mkdir /boot/efi/EFI/BOOT
-cp /usr/lib/shim/fbx64.efi /boot/efi/EFI/BOOT/bootx64.efi
+#echo "Copying fallback bootloader"
+#[[ -d /boot/efi/EFI/BOOT ]] || mkdir /boot/efi/EFI/BOOT
+#cp /usr/lib/shim/fbx64.efi /boot/efi/EFI/BOOT/bootx64.efi
 
 echo "--------------------------------------------"
 
@@ -410,7 +397,7 @@ fi
 if [[ -z $SKIP_UNMOUNT ]]
 then
 	echo "Unmounting chroot"
-	umount /mnt/dev /mnt/proc /mnt/sys /mnt/boot/efi /mnt
+	umount /mnt/dev /mnt/proc /mnt/sys /mnt
 
 	echo "Disconnecting $NBD_DEV"
 	sync
