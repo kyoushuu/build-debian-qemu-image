@@ -243,7 +243,8 @@ then
 	echo "Bootstrapping debian"
 	# XXX Hardcoded to x86_64 architecture but at the moment I do not want to run anything else.
 	#debootstrap --arch amd64 --include=salt-minion $SUITE /mnt $MIRROR
-	tar -xf ubuntu-base-22.04-base-amd64.tar.gz --preserve-permissions -C /mnt
+	debootstrap --arch amd64 $SUITE /mnt $MIRROR
+	#tar -xf ubuntu-base-22.04-base-amd64.tar.gz --preserve-permissions -C /mnt
 fi
 
 echo "Mounting proc, dev and sys"
@@ -278,53 +279,59 @@ mount -a
 
 echo "--------------------------------------------"
 
-#echo "Configuring networking"
+echo "Configuring networking"
 #echo "...lo"
-#cat - >>/etc/network/interaces <<S2EOF
+#[[ -d /etc/network ]] || mkdir /etc/network
+#cat - >>/etc/network/interfaces <<S2EOF
 
 #auto lo
 #iface lo inet loopback
 #S2EOF
 
-#echo "...enp1s0"
-#cat - >/etc/network/interfaces.d/enp1s0 <<S2EOF
-#allow-hotplug enp1s0
-#iface enp1s0 inet dhcp
-#S2EOF
+echo "...wired interface"
+cat - >/etc/systemd/network/20-wired.network <<S2EOF
+[Match]
+Name=en*
+
+[Network]
+DHCP=yes
+S2EOF
+systemctl enable systemd-networkd
+systemctl start systemd-networkd
 
 echo "Configuring hostname"
 echo "$NAME" > /etc/hostname
 
-echo "Setting up /etc/resolv.conf"
-cat - >/etc/resolv.conf <<S2EOF
-nameserver 1.1.1.1
-S2EOF
+#echo "Setting up /etc/resolv.conf"
+#cat - >/etc/resolv.conf <<S2EOF
+#nameserver 1.1.1.1
+#S2EOF
 
-echo "Setting up /etc/hosts"
-cat - >/etc/hosts <<S2EOF
-127.0.0.1       localhost
-127.0.1.1       $NAME.$DOMAIN_NAME $NAME
+#echo "Setting up /etc/hosts"
+#cat - >/etc/hosts <<S2EOF
+#127.0.0.1       localhost
+#127.0.1.1       $NAME.$DOMAIN_NAME $NAME
 
 # The following lines are desirable for IPv6 capable hosts
-::1     localhost ip6-localhost ip6-loopback
-ff02::1 ip6-allnodes
-ff02::2 ip6-allrouters
-S2EOF
+#::1     localhost ip6-localhost ip6-loopback
+#ff02::1 ip6-allnodes
+#ff02::2 ip6-allrouters
+#S2EOF
 
 echo "--------------------------------------------"
 
 echo "Updating packages"
 
 apt -qq -y update
-apt -qq -y upgrade
+#apt -qq -y upgrade
 
 echo "--------------------------------------------"
 
 echo "Setting timezone"
 echo "$TIMEZONE" > /etc/timezone
 rm -f /etc/localtime
-#dpkg-reconfigure -f noninteractive tzdata
-apt install -qq -y tzdata
+dpkg-reconfigure -f noninteractive tzdata
+#apt install -qq -y tzdata
 
 echo "--------------------------------------------"
 
