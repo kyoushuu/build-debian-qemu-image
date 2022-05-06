@@ -249,6 +249,7 @@ fi
 
 echo "Mounting proc, dev and sys"
 mount -o bind,ro /dev /mnt/dev
+mount -o bind,ro /dev/pts /mnt/dev/pts
 mount -t proc none /mnt/proc
 mount -t sysfs none /mnt/sys
 
@@ -307,7 +308,8 @@ echo "$NAME" > /etc/hostname
 #nameserver 1.1.1.1
 #S2EOF
 
-#echo "Setting up /etc/hosts"
+echo "Setting up /etc/hosts"
+sed -i 's/^\\(127.0.0.1\tlocalhost\\)/\\1\n127.0.1.1\t$NAME.$DOMAIN_NAME $NAME/' /etc/hosts
 #cat - >/etc/hosts <<S2EOF
 #127.0.0.1       localhost
 #127.0.1.1       $NAME.$DOMAIN_NAME $NAME
@@ -335,12 +337,17 @@ dpkg-reconfigure -f noninteractive tzdata
 
 echo "--------------------------------------------"
 
+echo "Installing kernel"
+apt-get -qq -y install linux-image-virtual
+
+echo "--------------------------------------------"
+
 echo "Configuring locales and keyboard"
 debconf-set-selections <<S2EOF
-locales locales/locales_to_be_generated multiselect en_GB.UTF-8 UTF-8
-locales locales/default_environment_locale select en_GB.UTF-8
-keyboard-configuration keyboard-configuration/layoutcode string gb
-keyboard-configuration keyboard-configuration/variant select English (UK)
+locales locales/locales_to_be_generated multiselect en_US.UTF-8 UTF-8
+locales locales/default_environment_locale select en_US.UTF-8
+keyboard-configuration keyboard-configuration/layoutcode string us
+keyboard-configuration keyboard-configuration/variant select English (US)
 keyboard-configuration keyboard-configuration/model select Generic 105-key PC (intl.)
 S2EOF
 # Stop anything overriding debconf's settings
@@ -349,18 +356,16 @@ apt-get -qq -y install locales console-setup
 
 echo "--------------------------------------------"
 
-echo "Installing kernel"
-apt-get -qq -y install linux-image-generic
-
-echo "--------------------------------------------"
-
 echo "Installing bootloader"
 apt-get -qq -y install grub-pc
 # Add console=ttyS0 so we get early boot messages on the serial console.
 sed -i -e 's/^\\(GRUB_CMDLINE_LINUX="[^"]*\\)"$/\\1 console=ttyS0"/' /etc/default/grub
+#cat - >>/etc/default/grub <<S2EOF
+#GRUB_TERMINAL="serial"
+#GRUB_SERIAL_COMMAND="serial --unit=0 --speed=9600 --stop=1"
+#S2EOF
 cat - >>/etc/default/grub <<S2EOF
-GRUB_TERMINAL="serial"
-GRUB_SERIAL_COMMAND="serial --unit=0 --speed=9600 --stop=1"
+GRUB_CMDLINE_LINUX_DEFAULT=""
 S2EOF
 grub-install ${NBD_DEV}
 update-grub
@@ -404,7 +409,7 @@ fi
 if [[ -z $SKIP_UNMOUNT ]]
 then
 	echo "Unmounting chroot"
-	umount /mnt/dev /mnt/proc /mnt/sys /mnt
+	umount /mnt/dev/pts /mnt/dev /mnt/proc /mnt/sys /mnt/boot/efi /mnt
 
 	echo "Disconnecting $NBD_DEV"
 	sync
